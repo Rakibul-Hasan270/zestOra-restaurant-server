@@ -14,6 +14,22 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+const verifyToken = (req, res, next) => {
+    const token = req.cookies.token;
+    if (!token) {
+        return res.status(401).send('unauthorized access');
+    }
+    if (token) {
+        jwt.verify(token, process.env.ACCESS_TOKEN, (error, decode) => {
+            if (error) {
+                return res.status(401).send('unauthorized access');
+            }
+            req.user = decode;
+            next()
+        })
+    }
+}
+
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.7ks5x.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -41,6 +57,14 @@ async function run() {
                 })
                 .send({ success: true });
         })
+        app.post('/log_out', async (req, res) => {
+            res.clearCookie('token', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+                maxAge: 0
+            }).send({ success: true });
+        })
 
         app.get('/items', async (req, res) => {
             const result = await itemCollection.find().toArray();
@@ -52,9 +76,15 @@ async function run() {
             const result = await itemCollection.findOne(filter);
             res.send(result);
         })
-        app.post('/cart_item', async (req, res) => {
+        app.post('/card_item', async (req, res) => {
             const item = req.body;
             const result = await specificUserCollection.insertOne(item);
+            res.send(result);
+        })
+        app.get('/card_item/:email', async (req, res) => {
+            const email = req.params.email;
+            const filter = { email }; // => params ar email diye database er email khoja like >  { email: email}
+            const result = await specificUserCollection.find(filter).toArray();
             res.send(result);
         })
 
